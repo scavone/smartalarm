@@ -1,7 +1,7 @@
 exports.password = '';
 exports.serverpassword='';
 exports.host = ''; //ip address of envisalink module
-exports.port = ;
+exports.port = 4025;
 exports.app_id = "";
 exports.access_token = "";
 exports.alarm_pin = '';
