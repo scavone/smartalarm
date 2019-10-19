@@ -1,29 +1,34 @@
 var express = require('express');
 var app = express();
 var nap = require('nodealarmproxy');
-var config = require('./config.js');
-var https = require('https');
 var bodyParser = require('body-parser');
 
-var alarm = nap.initConfig({ password:process.env.NODE_ALARM_PASSWORD || config.password,
-	serverpassword:process.env.NODE_ALARM_SERVER_PASSWORD || config.serverpassword,
-	actualhost:process.env.NODE_ALARM_PROXY_HOST || config.host,
-	actualport:process.env.NODE_ALARM_PROXY_PORT || config.port,
+if (process.env.NODE_ALARM_ACCESS_TOKEN && process.env.NODE_ALARM_APP_ID) {
+	//SmartThings is setup/enabled
+	var https = require('https');
+}
+
+var alarm = nap.initConfig({ password:process.env.NODE_ALARM_PASSWORD,
+	serverpassword:process.env.NODE_ALARM_SERVER_PASSWORD,
+	actualhost:process.env.NODE_ALARM_PROXY_HOST,
+	actualport:process.env.NODE_ALARM_PROXY_PORT,
 	serverhost:'0.0.0.0',
-	serverport:process.env.NODE_ALARM_SERVER_PORT || config.port,
-	zone:8,
+	serverport:process.env.NODE_ALARM_SERVER_PORT,
+	zone:'7',
 	partition:1,
-	proxyenable:true
+	proxyenable:true,
+	atomicEvents:true
 });
 
+var watchevents = ['601','602','609','610','650','651','652','653','654','655','656','657','658','659'];
+
 app.use(bodyParser.json());
-//app.use(bodyParser.urlencoded({
-//  extended: true
-//}));
+app.use(bodyParser.urlencoded({
+	extended: true
+}));
 
 app.get('/', function(req, res){
-	console.log('req');
-  res.send('hello world');
+	res.send('hello world!');
 });
 
 app.get('/status', function(req, res){
@@ -34,20 +39,19 @@ app.get('/status', function(req, res){
 
 app.post('/jsoncommand', function(req,res){
 	var reqObj = req.body.content;
-	// console.log('reqObj',reqObj);
-	var STpass = process.env.NODE_ALARM_STPASS || config.STpass;
-	var alarm_pin = process.env.NODE_ALARM_PIN || config.alarm_pin;
+	var STpass = process.env.NODE_ALARM_STPASS;
+	var alarm_pin = process.env.NODE_ALARM_PIN;
 	if (reqObj.password == STpass) {
 		if (reqObj.command =='arm') {
-			nap.manualCommand('0301',function(){
-	  		console.log('armed armed armed armed');
-	  		res.send('arming');
-	  	});
+			nap.manualCommand('0331'+alarm_pin,function(){
+				console.log('armed armed armed armed');
+				res.send('arming');
+			});
 		}
 		if (reqObj.command == 'disarm') {
 			nap.manualCommand('0401'+alarm_pin,function(){
-		  		res.send('disarmed');
-		  	});
+				res.send('disarmed');
+			});
 		}
 		if (reqObj.command == 'stayarm') {
 			nap.manualCommand('0311',function(){
@@ -55,9 +59,9 @@ app.post('/jsoncommand', function(req,res){
 		  	});
 		}
 		if (reqObj.command == 'nightarm') {
-			nap.manualCommand('0711*7'+alarm_pin,function(){
+			nap.manualCommand('0711*9'+alarm_pin,function(){
 				res.send('nightarm');
-		  	});
+			});
 		}
 		if (reqObj.command == 'status') {
 			sendStatus(function(){
@@ -67,42 +71,74 @@ app.post('/jsoncommand', function(req,res){
 	}
 });
 
-alarm.on('zone', function(data) {
-	if (config.watchevents.indexOf(data.code) != -1) {
-		var jsonString = JSON.stringify(data);
-		var app_id = process.env.NODE_ALARM_APP_ID || config.app_id;
-		var access_token = process.env.NODE_ALARM_ACCESS_TOKEN || config.access_token;
-		var pathURL = '/api/smartapps/installations/'+app_id+'/panel/zoneupdate?access_token='+access_token;
+alarm.on('data', function(data) {
+	console.log('npmtest data:',data);
+});
 
-		httpsRequest(pathURL,jsonString,function(){
+alarm.on('zoneupdate', function(data) {
+	console.log('npmtest zoneupdate:',data);
+	if (watchevents.indexOf(data.code) != -1) {
+		var jsonString = JSON.stringify(data);
+		var app_id = process.env.NODE_ALARM_APP_ID;
+		var access_token = process.env.NODE_ALARM_ACCESS_TOKEN;
+		var smartURL = '/api/smartapps/installations/'+app_id+'/panel/zoneupdate?access_token='+access_token;
+		console.log('smartURL:',smartURL);
+
+		httpsRequest(smartURL,jsonString,function(){
 			console.log('zone sent');
 		});
 	}
 });
 
-alarm.on('partition', function(data) {
-	console.log('data:',data);
-	if (config.watchevents.indexOf(data.code) != -1) {
+alarm.on('partitionupdate', function(data) {
+	console.log('npmtest partitionupdate:',data);
+	if (watchevents.indexOf(data.code) != -1) {
 		var jsonString = JSON.stringify(data);
-		var app_id = process.env.NODE_ALARM_APP_ID || config.app_id;
-		var access_token = process.env.NODE_ALARM_ACCESS_TOKEN || config.access_token;
-		var pathURL = '/api/smartapps/installations/'+app_id+'/panel/partitionupdate?access_token='+access_token;
+		var app_id = process.env.NODE_ALARM_APP_ID;
+		var access_token = process.env.NODE_ALARM_ACCESS_TOKEN;
+		var smartURL = '/api/smartapps/installations/'+app_id+'/panel/partitionupdate?access_token='+access_token;
+		console.log('smartURL:',smartURL);
 
-		httpsRequest(pathURL,jsonString,function(){
+		httpsRequest(smartURL,jsonString,function(){
 			console.log('partition sent');
 		});
 	}
 });
 
+/* alarm.on('zoneupdate', function(data) {
+	console.log('npmtest zoneupdate:',data);
+	if (watchevents.indexOf(data.code) != -1) {
+		var smartURL = "https://graph.api.smartthings.com/api/smartapps/installations/"+process.env.NODE_ALARM_APP_ID+"/panel/"+data.code+"/zone"+data.zone+"?access_token="+process.env.NODE_ALARM_ACCESS_TOKEN;
+		console.log('smartURL:',smartURL);
+		https.get(smartURL, function(res) {
+			console.log("Got response: " + res.statusCode);
+		}).on('error', function(e) {
+			console.log("Got error: " + e.message);
+		});
+	}
+});
+
+alarm.on('partitionupdate', function(data) {
+	console.log('npmtest partitionupdate:',data);
+	if (watchevents.indexOf(data.code) != -1) {	
+		var smartURL = "https://graph.api.smartthings.com/api/smartapps/installations/"+process.env.NODE_ALARM_APP_ID+"/panel/"+data.code+"/partition"+data.partition+"?access_token="+process.env.NODE_ALARM_ACCESS_TOKEN;
+		console.log('smartURL:',smartURL);
+		https.get(smartURL, function(res) {
+			console.log("Got response: " + res.statusCode);
+		}).on('error', function(e) {
+			console.log("Got error: " + e.message);
+		});
+	}
+}); */
+
 function sendStatus (callback) {
 	nap.getCurrent(function(currentstate){
-		
+		console.log('sendStatus:',currentstate);
   		var jsonString = JSON.stringify(currentstate);
-		var app_id = process.env.NODE_ALARM_APP_ID || config.app_id;
-		var access_token = process.env.NODE_ALARM_ACCESS_TOKEN || config.access_token;
-		var pathURL = '/api/smartapps/installations/'+app_id+'/panel/fullupdate?access_token='+access_token;
+		var smartURL = '/api/smartapps/installations/'+process.env.NODE_ALARM_APP_ID+'/panel/fullupdate?access_token='+process.env.NODE_ALARM_ACCESS_TOKEN;
+		console.log('smartURL:',smartURL);
 
-		httpsRequest(pathURL,jsonString, function(){
+		httpsRequest(smartURL,jsonString, function(){
 			callback();
 		});
 	});
@@ -123,9 +159,7 @@ function httpsRequest (pathURL, jsonString, callback) {
 	};
 
 	var req = https.request(options, function(res) {
-		console.log("statusCode: ", res.statusCode);
-		//console.log("headers: ", res.headers);
-
+		console.log("Got response: " + res.statusCode);
 		res.on('data', function(d) {
 			console.log(d);
 		});
@@ -140,4 +174,4 @@ function httpsRequest (pathURL, jsonString, callback) {
 	req.end();
 }
 
-app.listen(8086,'0.0.0.0');
+app.listen(Number(8086),'0.0.0.0');

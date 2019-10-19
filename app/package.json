@@ -1,7 +1,7 @@
 {
-  "name": "alarm",
+  "name": "smartalarm",
   "version": "1.0.0",
-  "description": "",
+  "description": "smartalarm",
   "main": "app.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
@@ -9,8 +9,8 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "body-parser": "^1.14.1",
-    "express": "^4.13.3",
-    "nodealarmproxy": "^0.7.2"
+    "body-parser": "1.19.0",
+    "express": "4.17.1",
+    "nodealarmproxy": "1.0.2"
   }
 }
